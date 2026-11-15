@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#fff0aa">
-<title>MUNIMO v3.7.16</title>
+<title>MUNIMO v3.7.17</title>
 <style>
 :root{font-family:'Zen Maru Gothic','Hiragino Maru Gothic ProN',system-ui,sans-serif;color:#594941;--ink:#594941;--muted:#9c8982;--rose:#d98891;--line:#f0e2d8;--cream:#fbf3ec;--panel:#fffdf9;--accent:#ed8f9c}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -70,7 +70,7 @@ footer{text-align:center;font-size:10px;color:#b59a8f;line-height:1.6;margin:14p
 @media(max-width:410px){.feelSliders{grid-template-columns:minmax(0,1fr);gap:11px}.feelDesc{min-height:0}.feelLabInner{padding:2px 12px 12px}}
 
 
-/* Color ways: three compatible squishies only; never obstruct the play area. */
+/* Color ways for the compatible squishies; never obstruct the play area. */
 .colorLab{background:#fffdf6;border:2px solid #f3ddb6;border-radius:21px;
   margin:6px 5px 12px;padding:10px 12px 12px;box-shadow:0 3px 0 #f5e7cc,inset 0 0 0 3px #fffaf1}
 .colorLab[hidden]{display:none!important}
@@ -468,6 +468,14 @@ footer{font-size:10px;color:#a68f82;margin-top:24px;padding-bottom:4px}
 @media(max-width:360px){.brandLogoImg{width:min(190px,53vw)}}
 @media(max-width:335px){header{flex-wrap:nowrap}.brandLogoImg{width:min(166px,51vw)}}
 
+/* v3.7.17: a small, non-intrusive cue when the color row overflows on narrow phones. */
+.colorSwatchFrame{position:relative;min-width:0}
+.colorScrollCue{position:absolute;right:0;top:50%;transform:translateY(-55%);cursor:pointer;
+  display:grid;place-items:center;width:36px;height:42px;border-radius:99px;
+  background:#fffdf5f0;border:1px solid #ebd3c7;box-shadow:0 1px 4px #a17b6325;
+  color:#b17f84;font-size:25px;font-weight:800;line-height:1}
+.colorScrollCue[hidden]{display:none!important}
+.colorScrollCue:focus-visible{outline:3px solid #d9819c;outline-offset:2px}
 </style>
 </head>
 <body>
@@ -483,7 +491,7 @@ footer{font-size:10px;color:#a68f82;margin-top:24px;padding-bottom:4px}
 <div class="shelfFrame"><div id="shelf" class="shelf" aria-label="スクイーズ一覧"></div><button type="button" class="shelfNext" id="shelfNext" aria-label="次のスクイーズを見る" hidden>›</button></div>
 <section class="colorLab" id="colorLab" aria-label="スクイーズの色を選ぶ" hidden>
 <div class="colorLabHead"><span class="colorLabTitle">🎨 いろをえらぶ</span><span class="colorLabPicked" id="colorPicked"></span></div>
-<div class="colorSwatches" id="colorSwatches" role="group" aria-label="色のバリエーション"></div>
+<div class="colorSwatchFrame"><div class="colorSwatches" id="colorSwatches" role="group" aria-label="色のバリエーション"></div><button type="button" class="colorScrollCue" id="colorScrollCue" aria-label="次の色を見る" hidden>›</button></div>
 <div class="colorLabNote" id="colorLabNote">色はスクイーズごとに保存。</div>
 </section>
 <section class="settings" aria-label="触り心地の設定"><div class="settingTop"><div class="settingTitle">✿ さわり心地を選ぶ</div><div class="settingTip">どの形にも設定できます</div></div><div class="materials"><button class="matBtn" data-material="fluff" aria-pressed="true"><span class="em">☁</span> ふわとろ</button><button class="matBtn" data-material="mochi" aria-pressed="false"><span class="em">✿</span> もちもち</button><button class="matBtn" data-material="goo" aria-pressed="false"><span class="em">◍</span> ねっとり</button></div>
@@ -566,7 +574,8 @@ const feelKeys=['k','drag','stretch','dragRadius','bulge','meshCoupling','pressS
 const FEEL_STORAGE='munikoro_feel_lab_v1';
 const feelRanges={k:[40,195],drag:[.74,.96],stretch:[.75,1.45],dragRadius:[.12,.33],bulge:[.04,.22],meshCoupling:[45,185],pressSpeed:[3.5,16],releaseTime:[.12,1.85],pressDepth:[.55,1.60]};
 const savedFeels=(()=>{try{const v=JSON.parse(localStorage.getItem(FEEL_STORAGE)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}catch(e){return {}}})();
-const feelStorageAvailable=(()=>{try{localStorage.setItem('__munikoro_probe','1');localStorage.removeItem('__munikoro_probe');return true}catch(e){return false}})();
+let feelStorageAvailable=(()=>{try{localStorage.setItem('__munikoro_probe','1');localStorage.removeItem('__munikoro_probe');return true}catch(e){return false}})();
+let colorStorageAvailable=feelStorageAvailable;
 const copyFeel=(source)=>Object.fromEntries(feelKeys.map(key=>[key,source[key]]));
 const cleanFeel=(data,backup)=>{
  const result=copyFeel(backup);
@@ -578,8 +587,10 @@ const cleanFeel=(data,backup)=>{
 const saveFeel=()=>{if(current<0)return;try{
  const previous=savedFeels[toys[current].id]||{};
  savedFeels[toys[current].id]=material==='custom'?{mode:'custom',values:copyFeel(materials.custom)}:{mode:material,...(previous.values?{values:previous.values}:{})};
- localStorage.setItem(FEEL_STORAGE,JSON.stringify(savedFeels));
- }catch(e){/* Private browsing or storage blocked: session still works. */}};
+ if(feelStorageAvailable)localStorage.setItem(FEEL_STORAGE,JSON.stringify(savedFeels));
+ }catch(e){feelStorageAvailable=false;}
+ updateShelfFeelLabel(current);
+};
 materials.custom={...materials.fluff,name:'カスタム'};
 const $=id=>document.getElementById(id);
 // v3.5.5: measured vector contours from the frontal reference.
@@ -1661,8 +1672,20 @@ const contours=textures.map((tex,i)=>{
  return{outer,inner};
 });
 
-const shelf=$('shelf');toys.forEach((toy,i)=>{const b=document.createElement('button');b.className='toyCard';b.type='button';b.setAttribute('aria-pressed','false');b.setAttribute('aria-label',toy.name+'を選ぶ');const thumb=document.createElement('canvas');thumb.width=112;thumb.height=102;thumb.getContext('2d').drawImage(textures[i],0,0,512,512,0,0,112,102);for(const layer of decorations[i])thumb.getContext('2d').drawImage(layer,0,0,512,512,0,0,112,102);const lab=document.createElement('span');lab.textContent=toy.name;const small=document.createElement('i');small.textContent=toy.label;const art=document.createElement('div');art.className='cardArt';art.appendChild(thumb);const cardMeta=document.createElement('div');cardMeta.className='cardMeta';cardMeta.append(lab,small);b.append(art,cardMeta);b.addEventListener('click',()=>selectToy(i));shelf.appendChild(b)});
+function getShelfFeelLabel(toy){
+ const mode=savedFeels[toy.id]?.mode;
+ return mode==='custom'?'カスタム':materials[mode]?.name||toy.label;
+}
+function updateShelfFeelLabel(i){
+ if(i<0)return;
+ const toy=toys[i],button=shelf.children[i];if(!toy||!button)return;
+ const label=getShelfFeelLabel(toy);
+ const detail=button.querySelector('.cardMeta i');if(detail)detail.textContent=label;
+ button.setAttribute('aria-label',toy.name+'（さわり心地：'+label+'）を選ぶ');
+}
+const shelf=$('shelf');toys.forEach((toy,i)=>{const b=document.createElement('button');b.className='toyCard';b.type='button';b.setAttribute('aria-pressed','false');b.setAttribute('aria-label',toy.name+'（さわり心地：'+getShelfFeelLabel(toy)+'）を選ぶ');const thumb=document.createElement('canvas');thumb.width=112;thumb.height=102;thumb.getContext('2d').drawImage(textures[i],0,0,512,512,0,0,112,102);for(const layer of decorations[i])thumb.getContext('2d').drawImage(layer,0,0,512,512,0,0,112,102);const lab=document.createElement('span');lab.textContent=toy.name;const small=document.createElement('i');small.textContent=getShelfFeelLabel(toy);const art=document.createElement('div');art.className='cardArt';art.appendChild(thumb);const cardMeta=document.createElement('div');cardMeta.className='cardMeta';cardMeta.append(lab,small);b.append(art,cardMeta);b.addEventListener('click',()=>selectToy(i));shelf.appendChild(b)});
 const studio=$('studio');let canvas=$('squishCanvas');let width=1,height=1,logicalSize=400,centerX=0,centerY=0;let current=-1,material='fluff',everTouched=false;
+let glLost=false;
 // Active grips have immutable rest-space anchors; released grips retain a fading dimple.
 let pointers=new Map(),contacts=[];
 const bodyOffset={x:0,y:0,vx:0,vy:0};
@@ -1681,7 +1704,6 @@ const contourSamples=176;
 // layer: diffuse cake-like folds, powder: minute matte crumb, bulge: edge roundness.
 const sideStyles={
  daifuku:{mid:'#f9d0d5',bottom:'#ebc3cb',crumb:'#fff3f0',layer:.016,powder:.67,bulge:1.02},
- bee:{mid:'#efdb9d',bottom:'#e4c58c',crumb:'#fff6d5',layer:.035,powder:.23,bulge:1.08},
  chick:{mid:'#f3d8e0',bottom:'#e9c6d2',crumb:'#fff7f9',layer:.015,powder:.40,bulge:1.03},
  crepe:{mid:'#f4cb7b',bottom:'#e6ad5d',crumb:'#ffecc0',layer:.16,powder:.50,bulge:1.05},
  toast:{mid:'#f5e2c5',bottom:'#dfc3a4',crumb:'#fff4df',layer:.66,powder:.68,bulge:1.08},
@@ -1690,11 +1712,10 @@ const sideStyles={
  donut:{mid:'#f6d19d',bottom:'#e0aa75',crumb:'#fff4dd',layer:.70,powder:.64,bulge:1.18},
  pudding:{mid:'#f8e0b7',bottom:'#e3be91',crumb:'#fff5d9',layer:.64,powder:.60,bulge:1.06},
  cookiecream:{mid:'#f7ebc7',bottom:'#e3cd9e',crumb:'#fff7e2',layer:.48,powder:.58,bulge:1.09},
- paw:{mid:'#fdf8fa',bottom:'#eee3e8',crumb:'#fffdfd',layer:.004,powder:.15,bulge:.84},
- sakura_rabbit:{mid:'#edc0d1',bottom:'#dca9be',crumb:'#fff1f5',layer:.04,powder:.85,bulge:1.02}
+ paw:{mid:'#fdf8fa',bottom:'#eee3e8',crumb:'#fffdfd',layer:.004,powder:.15,bulge:.84}
 };
 if(getColorStyle('paw')){const v=getColorStyle('paw');[sideStyles.paw.mid,sideStyles.paw.bottom,sideStyles.paw.crumb]=v.side}
-const shapeThickness={daifuku:.135,bee:.066,chick:.055,crepe:.155,toast:.205,strawberry:.055,heart:.116,donut:.178,pudding:.190,cookiecream:.182,paw:.074,sakura_rabbit:.205};
+const shapeThickness={daifuku:.135,chick:.055,crepe:.155,toast:.205,strawberry:.055,heart:.116,donut:.178,pudding:.190,cookiecream:.182,paw:.074};
 const hexColor=(hex)=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);
 const rgbMix=(a,b,t)=>a.map((v,i)=>v*(1-t)+b[i]*t);
 // A soft round edge grows outward slightly in the middle of the depth, then
@@ -1767,6 +1788,22 @@ function computeSideEdgeColors(tex,index){
 const sideEdgeColors=textures.map(computeSideEdgeColors);
 function hexRGB(hex){return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255)}
 function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
+function onWebGLContextLost(e){
+ e.preventDefault(); // Without this, some browsers permanently discard the context.
+ glLost=true;resting=false;dirty=true;
+ pointers.clear();blankStageScroll.clear();contacts.length=0;
+ studio.classList.remove('touching');
+}
+function onWebGLContextRestored(){
+ if(!glLost)return;
+ glLost=false;
+ // Lost GPU resources cannot be reused. Rebuild shaders, buffers and textures
+ // from the unchanged, CPU-side canvases and restart at a clean resting shape.
+ gl=canvas.getContext('webgl',{alpha:true,premultipliedAlpha:false,antialias:true,preserveDrawingBuffer:false,powerPreference:'high-performance'});
+ if(gl){initGL();resetMesh();resize();}
+ else{showFallback('WebGLの復元に失敗したため、2D表示に切り替えました。');resize();}
+ resting=false;dirty=true;
+}
 function initGL(){if(!gl)return;try{
  const vs=shader(gl.VERTEX_SHADER,`attribute vec2 a_position; attribute vec2 a_uv; varying vec2 v_uv; void main(){gl_Position=vec4(a_position,0.,1.);v_uv=a_uv;}`);
  const fs=shader(gl.FRAGMENT_SHADER,`precision mediump float;
@@ -1899,6 +1936,7 @@ function refreshColorUI(){
  lab.hidden=false;
  const selected=getColorStyle(id);
  $('colorPicked').textContent='いまの色：'+selected.name;
+ $('colorLabNote').textContent=colorStorageAvailable?'色はスクイーズごとに保存。':'保存できない環境のため、色は開いている間だけ反映されます。';
  const group=$('colorSwatches');group.replaceChildren();
  for(const v of list){
   const b=document.createElement('button');b.type='button';b.className='colorChoice';
@@ -1907,25 +1945,31 @@ function refreshColorUI(){
   const name=document.createElement('span');name.textContent=v.name;
   b.append(dot,name);b.addEventListener('click',()=>setToyColor(id,v.id));group.append(b);
  }
+ requestAnimationFrame(updateColorScrollCue);
 }
 function setToyColor(id,variantId){
  const i=toys.findIndex(t=>t.id===id);
  if(i<0||!COLOR_WAYS[id]?.some(v=>v.id===variantId))return;
  if(getColorStyle(id).id===variantId)return;
  savedColors[id]=variantId;
- try{localStorage.setItem(COLOR_STORAGE,JSON.stringify(savedColors))}catch(e){}
+ if(colorStorageAvailable){try{localStorage.setItem(COLOR_STORAGE,JSON.stringify(savedColors))}catch(e){colorStorageAvailable=false}}
  // Regenerate the painted surface and its perimeter colors without touching
  // contours, vertex positions, material settings or the spring physics.
  const tex=makeTexture(toys[i]);textures[i]=tex;
  sideEdgeColors[i]=computeSideEdgeColors(tex,i);
  if(id==='paw'){const v=getColorStyle('paw');[sideStyles.paw.mid,sideStyles.paw.bottom,sideStyles.paw.crumb]=v.side}
- if(gl&&textureObjects[i]){
+ if(gl&&!glLost&&textureObjects[i]){
   gl.bindTexture(gl.TEXTURE_2D,textureObjects[i]);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,tex);
  }
  renderToyThumbnail(i);refreshColorUI();dirty=true;resting=false;
  if(!gl&&i===current)showFallback();
+}
+function updateColorScrollCue(){
+ const row=$('colorSwatches'),cue=$('colorScrollCue');
+ if(!row||!cue)return;
+ cue.hidden=$('colorLab').hidden||row.scrollWidth-row.clientWidth-row.scrollLeft<=6;
 }
 function updateShelfNext(){
  const next=$('shelfNext');
@@ -1948,6 +1992,7 @@ function selectToy(i){
 
 
  refreshColorUI();
+ updateShelfFeelLabel(i);
  for(let j=0;j<toys.length;j++)shelf.children[j].setAttribute('aria-pressed',String(i===j));
  updateShelfNext();
  updateMaterial();if(width>1)resize();if(!gl)showFallback();
@@ -2017,7 +2062,7 @@ function resize(){
  centerX=width*.5-(xmin+xmax)*logicalSize*.25;
  centerY=height*.5-(ymin+ymax)*logicalSize*.25-depth*logicalSize*.25;
  wallTouch=0;wallContact={left:0,right:0,top:0,bottom:0};wallPressure={left:0,right:0,top:0,bottom:0};wallReleaseMemory=0;morphFrame=null;
- if(gl)gl.viewport(0,0,canvas.width,canvas.height);else showFallback();
+ if(gl&&!glLost)gl.viewport(0,0,canvas.width,canvas.height);else if(!gl)showFallback();
 }
 function coord(e){const r=canvas.getBoundingClientRect();return{x:((e.clientX-r.left)-centerX)/logicalSize*2,y:((e.clientY-r.top)-centerY)/logicalSize*2}}
 // Alpha lookup is cached: a touch should still hit a stretched or squashed silhouette.
@@ -2420,6 +2465,7 @@ function renderSides(){
  for(const a of [sideLoc.pos,sideLoc.depth,sideLoc.light,sideLoc.u,sideLoc.edge])gl.disableVertexAttribArray(a);
 }
 function tick(time){
+  if(glLost){prev=time;requestAnimationFrame(tick);return;}
  // While the app is idle, avoid redrawing thousands of vertices every frame.
  if(resting&&!dirty&&!pointers.size){prev=time;requestAnimationFrame(tick);return;}
  dirty=false;
@@ -2613,10 +2659,17 @@ $('defaultFeelBtn').addEventListener('click',()=>{
  if(current<0)return;
  material=toys[current].feel;
  delete savedFeels[toys[current].id];
- try{localStorage.setItem(FEEL_STORAGE,JSON.stringify(savedFeels))}catch(e){}
- resetMesh();updateMaterial();
+ if(feelStorageAvailable){try{localStorage.setItem(FEEL_STORAGE,JSON.stringify(savedFeels))}catch(e){feelStorageAvailable=false}}
+ updateShelfFeelLabel(current);resetMesh();updateMaterial();
 });
 window.addEventListener('resize',resize);window.addEventListener('orientationchange',resize);document.addEventListener('visibilitychange',()=>{if(document.hidden){for(const t of pointers.values())t.active=false;pointers.clear();studio.classList.remove('touching')}});
+canvas.addEventListener('webglcontextlost',onWebGLContextLost,false);
+canvas.addEventListener('webglcontextrestored',onWebGLContextRestored,false);
+$('colorSwatches').addEventListener('scroll',updateColorScrollCue,{passive:true});
+$('colorScrollCue').addEventListener('click',()=>{
+ const row=$('colorSwatches');row.scrollBy({left:Math.max(100,row.clientWidth*.42),behavior:'smooth'});
+});
+window.addEventListener('resize',()=>requestAnimationFrame(updateColorScrollCue));
 initGL();selectToy(0);resize();requestAnimationFrame(tick);
 });
 </script>
